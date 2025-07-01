@@ -1,56 +1,94 @@
 import streamlit as st
-import os
 import yaml
 from src.rag_pipeline import RAGPipeline
 
-# Load config
-with open('config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
+# --- CONFIGURATION & INITIALIZATION ---
+st.set_page_config(
+    page_title="RAG Chatbot with Streaming",
+    page_icon="🤖",
+    layout="wide"
+)
 
-st.set_page_config(page_title="PDF Q&A with Open-Source RAG", layout="wide")
+@st.cache_resource
+def load_config():
+    with open('config.yaml', 'r') as file:
+        return yaml.safe_load(file)
 
-st.title("📄 PDF Q&A with an Open-Source LLM")
-st.write("Ask any question about your document. This app uses a local RAG pipeline with Ollama.")
-
-# --- Helper Functions ---
 @st.cache_resource
 def load_pipeline():
-    """Load the RAG pipeline, handling potential errors."""
+    """Loads the RAG pipeline and returns it along with the number of indexed docs."""
     try:
-        return RAGPipeline()
-    except FileNotFoundError as e:
-        st.error(f"**Error:** {e}")
-        st.warning(f"Please make sure your PDF file is in the `data/` directory and named correctly in `config.yaml`.")
-        return None
-    except ValueError as e:
-        st.error(f"**Error:** {e}")
-        st.warning("This may be due to an issue with the PDF file itself.")
-        return None
+        config = load_config()
+        pipeline = RAGPipeline(config)
+        # Get the number of documents from the vector store
+        num_docs = pipeline.vector_db._collection.count()
+        return pipeline, num_docs
     except Exception as e:
-        st.error(f"An unexpected error occurred during initialization: {e}")
-        return None
+        st.error(f"Failed to load the RAG pipeline: {e}")
+        st.stop()
 
-# --- Main App Logic ---
-pipeline = load_pipeline()
+config = load_config()
+llm_model_name = config.get('llm', {}).get('model_name', 'N/A')
+pipeline, num_indexed_docs = load_pipeline()
 
-if pipeline:
-    st.sidebar.header("Controls")
-    question = st.sidebar.text_input("Ask a question:", "")
-
-    if st.sidebar.button("Get Answer", use_container_width=True) and question:
-        with st.spinner("Finding an answer..."):
-            try:
-                answer = pipeline.query(question)
-                st.success("Answer")
-                st.markdown(answer)
-            except Exception as e:
-                st.error(f"An error occurred while generating the answer: {e}")
-                st.warning("Please ensure the Ollama server is running and the model is available.")
-    else:
-        st.info("Enter a question in the sidebar and click 'Get Answer'.")
-else:
-    st.subheader("Pipeline failed to load.")
-    st.write("Please resolve the errors displayed above to proceed.")
-    if st.button("Retry Loading Pipeline"):
-        st.cache_resource.clear()
+# --- SIDEBAR ---
+with st.sidebar:
+    st.header("Chatbot Configuration")
+    st.info(f"**Model in Use:** `{llm_model_name}`")
+    st.success(f"**Indexed Documents:** `{num_indexed_docs}` chunks")
+    
+    if st.button("Clear Chat History", key="clear_chat"):
+        st.session_state.messages = []
         st.rerun()
+
+# --- MAIN CHAT INTERFACE ---
+st.title("💬 RAG Chatbot with Streaming Responses")
+st.markdown("Ask questions about your document. The chatbot will answer and show you the sources it used.")
+
+# Initialize chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# Display chat messages from history on app rerun
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# React to user input
+if prompt := st.chat_input("What is your question?"):
+    # Add user message to chat history
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    # Display user message in chat message container
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    # Display assistant response in chat message container
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        full_response = ""
+        
+        try:
+            # Get the stream and source documents from the pipeline
+            source_docs, response_stream = pipeline.query(prompt)
+            
+            # Stream the response to the UI
+            for chunk in response_stream:
+                full_response += chunk
+                message_placeholder.markdown(full_response + "▌") # Add a blinking cursor
+            message_placeholder.markdown(full_response)
+
+            # Display the source documents with page numbers and context
+            st.divider()
+            st.subheader("Sources Used")
+            for i, doc in enumerate(source_docs, 1):
+                with st.expander(f"Source {i} (Page {doc.metadata.get('page', 'N/A')})"):
+                    st.caption(f"**Page {doc.metadata.get('page', 'N/A')}**")
+                    st.markdown(doc.page_content)
+                    st.caption("---")
+
+        except Exception as e:
+            full_response = f"An error occurred: {e}"
+            message_placeholder.error(full_response)
+
+    # Add the final assistant response to chat history
+    st.session_state.messages.append({"role": "assistant", "content": full_response})

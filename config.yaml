@@ -1,5 +1,5 @@
 pdf_processing:
-  chunk_size: 1000
+  chunk_size: 750
   chunk_overlap: 200
 
 embedding:

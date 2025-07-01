@@ -1,52 +1,104 @@
-# RAG Pipeline for PDF Document Analysis (with Open-Source LLM)
+# RAG Chatbot with Document Analysis
 
-This project implements a Retrieval-Augmented Generation (RAG) pipeline to answer questions based on a PDF document, using a locally-run open-source LLM via Ollama.
+A Retrieval-Augmented Generation (RAG) chatbot that answers questions based on a provided PDF document. This implementation uses:
 
-## Project Structure
+- **Mistral 7B** (via Ollama) as the language model
+- **ChromaDB** for vector storage and retrieval
+- **Sentence Transformers** for document embeddings
+- **Streamlit** for the web interface
+
+## ✨ Features
+
+- **Document Processing**: Automatically processes and chunks PDF documents with page-level tracking
+- **Semantic Search**: Finds relevant document sections using vector similarity
+- **Source Citation**: Shows exact page numbers and source text for all answers
+- **Streaming Responses**: Real-time token streaming for a better user experience
+- **Persistent Storage**: Saves processed documents for faster subsequent loads
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+1. Install [Ollama](https://ollama.ai/) and pull the Mistral model:
+   ```bash
+   ollama pull mistral
+   ```
+
+2. Install Python dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Running the Application
+
+1. Place your PDF document in the `data/` directory (or update the path in `config.yaml`)
+2. Start the Streamlit app:
+   ```bash
+   streamlit run app.py
+   ```
+3. Open your browser to `http://localhost:8501`
+
+## 🛠️ Configuration
+
+Edit `config.yaml` to customize:
+
+```yaml
+pdf_processing:
+  chunk_size: 750      # Adjust based on document complexity
+  chunk_overlap: 200   # Overlap between chunks for better context
+
+embedding:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+llm:
+  model_name: "mistral"  # Using Mistral 7B via Ollama
+
+paths:
+  pdf_file: "data/your_document.pdf"
+  chunk_dir: "data/chunks"
+  db_dir: "data/vectordb"
+```
+
+## 📂 Project Structure
 
 ```
-project-root/
-│
-├── /data
-│   ├── your_document.pdf      # Place your PDF here
-│   ├── /chunks               # Stores text chunks from the PDF
-│   └── /vectordb             # Stores the FAISS/Chroma index
-├── /notebooks
-│   ├── 01_pdf_analysis.ipynb      # EDA on the PDF
-│   ├── 02_chunking_strategy.ipynb # Chunk size experiments
-│   └── 03_embedding_eval.ipynb    # Embedding quality tests
-├── /src
+rag-project/
+├── data/                  # Store PDFs and processed chunks
+├── notebooks/             # Jupyter notebooks for analysis
+├── src/
 │   ├── __init__.py
-│   ├── pdf_processor.py     # PDF parsing & chunking
-│   ├── retriever.py         # Vector search
-│   ├── generator.py         # LLM response generation (Ollama)
-│   └── rag_pipeline.py      # Main pipeline
-├── app.py                   # Streamlit interface
-├── config.yaml              # Settings (chunk size, model names)
-├── requirements.txt
-├── .gitignore
-├── README.md
-└── report.md                # Placeholder for a report
+│   ├── pdf_processor.py   # PDF text extraction and chunking
+│   ├── retriever.py       # Vector database management
+│   ├── generator.py       # LLM response generation
+│   └── rag_pipeline.py    # Main RAG pipeline
+├── app.py                # Streamlit web interface
+├── config.yaml           # Configuration settings
+└── requirements.txt      # Python dependencies
 ```
 
-## How to Run
+## 🤖 How It Works
 
-1.  **Install and Run Ollama**:
-    - Download and install [Ollama](https://ollama.com/).
-    - Pull the model specified in `config.yaml` (default is `mistral`):
-      ```bash
-      ollama pull mistral
-      ```
-    - Make sure the Ollama application is running in the background.
+1. **Document Processing**:
+   - Extracts text from PDF with page numbers
+   - Splits content into overlapping chunks
+   - Stores metadata including source page numbers
 
-2.  **Place your PDF:** Add your PDF file to the `data/` directory.
+2. **Query Processing**:
+   - Converts user questions into vector embeddings
+   - Retrieves most relevant document sections
+   - Generates answers using the LLM with proper citations
 
-3.  **Install Python dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+3. **Response Generation**:
+   - Streams responses token by token
+   - Includes source citations with page numbers
+   - Preserves chat history during the session
 
-4.  **Run the Streamlit app:**
-    ```bash
-    streamlit run app.py
-    ```
+## 📝 Notes
+
+- First run will take longer as it processes the entire document
+- The application maintains a local vector database for faster subsequent loads
+- For large documents, consider increasing the chunk size in the config
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
