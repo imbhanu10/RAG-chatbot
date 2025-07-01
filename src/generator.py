@@ -9,22 +9,20 @@ with open('config.yaml', 'r') as f:
 
 def get_rag_chain():
     """Initializes and returns a RAG chain for response generation using Ollama."""
-    template = """
-    You are an expert assistant. Your task is to answer the user's question based ONLY on the following context.
-    Synthesize the information from the context to provide a clear, concise, and conversational answer.
-    Do NOT simply copy and paste sentences from the context. Rephrase the answer in your own words.
-    If the context does not contain the answer, you must state that you cannot answer based on the provided document.
-
-    Context:
-    ---
-    {context}
-    ---
-
-    Question: {question}
-
-    Answer:
-    """
-    
+    template = ChatPromptTemplate.from_messages([
+        ("system", """You are a helpful assistant that answers questions STRICTLY based on the provided context. Follow these rules:
+        1. Answer ONLY using the information from the provided context
+        2. If the context doesn't contain the answer, say 'I couldn't find this information in the document.'
+        3. Never make up or assume information that's not in the context
+        4. Keep your answer concise and to the point
+        5. If the question is not related to the document, say 'This question is not covered in the document.'
+        
+        Context: {context}
+        Question: {question}
+        
+        Answer:"""),
+        ("human", "{question}")
+    ])
     prompt = PromptTemplate.from_template(template)
     
     llm = Ollama(model=config['llm']['model_name'])

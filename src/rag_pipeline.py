@@ -23,16 +23,38 @@ class RAGPipeline:
         self.rag_chain = get_rag_chain()
         print(f"RAG Pipeline initialized with {self.vector_db._collection.count()} document chunks")
 
-    def query(self, question):
-        """Performs a similarity search and streams the response, returning sources."""
-        print(f"Searching for relevant context for: '{question}'")
-        retriever = self.vector_db.as_retriever(search_kwargs={"k": 4})
-        docs = retriever.get_relevant_documents(question)
-        context = "\n".join([doc.page_content for doc in docs])
+    def query(self, question, top_k=6, min_score=0.7):
+        """
+        Performs a similarity search with score thresholding and returns relevant sources.
         
-        print("Generating answer stream...")
-        # The stream is a generator of tokens
-        stream = self.rag_chain.stream({"context": context, "question": question})
+        Args:
+            question: The user's question
+            top_k: Number of chunks to retrieve
+            min_score: Minimum relevance score (0-1) for a chunk to be included
+            
+        Returns:
+            tuple: (filtered_docs, response_generator)
+        """
+        # Convert to vector embedding for similarity search
+        embedding_function = self.vector_db._embedding_function
+        query_embedding = embedding_function.embed_query(question)
         
-        # Return the source documents and the stream generator
-        return docs, stream
+        # Get documents with scores
+        results = self.vector_db.similarity_search_with_score(
+            question,
+            k=top_k
+        )
+        
+        # Filter by score threshold
+        filtered_docs = [doc for doc, score in results if score >= min_score]
+        
+        if not filtered_docs:
+            return [], iter(["I couldn't find relevant information in the document to answer this question."])
+        
+        # Generate and stream the response
+        response = self.rag_chain.stream({
+            "context": "\n\n".join([doc.page_content for doc in filtered_docs]),
+            "question": question
+        })
+        
+        return filtered_docs, response
