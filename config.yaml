@@ -1,0 +1,14 @@
+pdf_processing:
+  chunk_size: 1000
+  chunk_overlap: 200
+
+embedding:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+
+llm:
+  model_name: "mistral" # Using mistral-7b-instruct via Ollama
+
+paths:
+  pdf_file: "data/AI Training Document.pdf"
+  chunk_dir: "data/chunks"
+  db_dir: "data/vectordb"
